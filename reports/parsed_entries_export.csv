@@ -1,0 +1,17 @@
+timestamp,level,source,message,anomalyScore
+1775981723,INFO,server1,Authentication successful for user: admin,0
+1775981805,WARNING,server1,High memory usage detected: 87%,0.5
+1775982012,ERROR,db1,Database connection failed - timeout,0.85
+1775982333,ERROR,server2,Null pointer exception in module X,0.85
+1775982601,INFO,server1,User login from IP 192.168.1.45,0
+1775982947,SECURITY,auth1,Failed login attempt from suspicious IP,0.98
+1775983222,ERROR,db1,SQL injection attempt detected,0.8
+1775984710,WARNING,server3,Disk space below 15%,0.5
+1775981723,INFO,server1,Authentication successful for user: admin,0
+1775981805,WARNING,server1,High memory usage detected: 87%,0.5
+1775982012,ERROR,db1,Database connection failed - timeout,0.85
+1775982333,ERROR,server2,Null pointer exception in module X,0.85
+1775982601,INFO,server1,User login from IP 192.168.1.45,0
+1775982947,SECURITY,auth1,Failed login attempt from suspicious IP,0.98
+1775983222,ERROR,db1,SQL injection attempt detected,0.8
+1775984710,WARNING,server3,Disk space below 15%,0.5

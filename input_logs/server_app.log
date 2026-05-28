@@ -1,0 +1,8 @@
+[2026-04-12 08:15:23] INFO server1 Authentication successful for user: admin
+[2026-04-12 08:16:45] WARNING server1 High memory usage detected: 87%
+[2026-04-12 08:20:12] ERROR db1 Database connection failed - timeout
+[2026-04-12 08:25:33] ERROR server2 Null pointer exception in module X
+[2026-04-12 08:30:01] INFO server1 User login from IP 192.168.1.45
+[2026-04-12 08:35:47] SECURITY auth1 Failed login attempt from suspicious IP
+[2026-04-12 08:40:22] ERROR db1 SQL injection attempt detected
+[2026-04-12 09:05:10] WARNING server3 Disk space below 15%

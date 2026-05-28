@@ -1,0 +1,6 @@
+[1779943555] CRITICAL ALERT - SQL injection attempt detected (Score: 0.8)
+[1779943555] CRITICAL ALERT - Database connection failed - timeout (Score: 0.85)
+[1779943555] CRITICAL ALERT - Null pointer exception in module X (Score: 0.85)
+[1779943555] CRITICAL ALERT - Failed login attempt from suspicious IP (Score: 0.98)
+[1779947972] CRITICAL ALERT - SQL injection attempt detected (Score: 0.8)
+[1779947972] CRITICAL ALERT - SQL injection attempt detected (Score: 0.8)
