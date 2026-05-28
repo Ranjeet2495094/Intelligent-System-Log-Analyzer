@@ -148,7 +148,11 @@ void LogAnalyzer::detectSpikes(int windowMinutes, std::string& alertMessage) {
             }
         }
         if (!spikeDetected) {
-            alertMessage = "No spike anomalies detected in the current data window.";
+            if (!anomalies.empty()) {
+                alertMessage = "No error spike detected; high-score anomalies were found.";
+            } else {
+                alertMessage = "No spike anomalies detected in the current data window.";
+            }
         }
     }
 
@@ -169,9 +173,6 @@ void LogAnalyzer::detectSpikes(int windowMinutes, std::string& alertMessage) {
             summary.score = entry->getAnomalyScore();
             anomalies.push_back(summary);
         }
-    }
-    if (!alertMessage.empty() && alertMessage == "No spike anomalies detected in the current data window." && !anomalies.empty()) {
-        alertMessage.clear();
     }
     if (alertMessage.empty() && anomalies.empty()) {
         alertMessage = "No spikes or high-score anomalies found.";
