@@ -70,38 +70,94 @@ static std::string normalizeKeyword(const std::string& keyword) {
     return copy;
 }
 
+static bool anomalyExists(const std::vector<AnomalySummary>& summaries, LogEntry* entry) {
+    for (std::vector<AnomalySummary>::const_iterator it = summaries.begin(); it != summaries.end(); ++it) {
+        if (it->timestamp == entry->getTimestamp() && it->level == entry->getLevel() && it->source == entry->getSource() && it->description == entry->getMessage()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void LogAnalyzer::detectSpikes(int windowMinutes, std::string& alertMessage) {
     anomalies.clear();
     timeWindow.clear();
-    std::vector<LogEntry*> errors;
+    std::map<std::string, std::vector<LogEntry*> > errorsBySource;
     for (std::vector<LogEntry*>::const_iterator it = entries->begin(); it != entries->end(); ++it) {
         if (*it != NULL && normalizeKeyword((*it)->getLevel()) == "error") {
-            errors.push_back(*it);
+            errorsBySource[(*it)->getSource()].push_back(*it);
         }
     }
-    if (errors.empty()) {
+    if (errorsBySource.empty()) {
         alertMessage = "No error entries available for spike detection.";
-        return;
-    }
-    std::sort(errors.begin(), errors.end(), compareByTimestamp);
-    std::time_t firstTime = errors.front()->getTimestamp();
-    std::time_t lastTime = errors.back()->getTimestamp();
-    double hours = static_cast<double>(lastTime - firstTime) / 3600.0;
-    if (hours < 1.0) {
-        hours = 1.0;
-    }
-    double average = static_cast<double>(errors.size()) / hours;
-    if (average < 1.0) {
-        average = 1.0;
-    }
-    int windowSeconds = windowMinutes * 60;
-    for (std::vector<LogEntry*>::const_iterator it = errors.begin(); it != errors.end(); ++it) {
-        LogEntry* entry = *it;
-        timeWindow.push_back(entry);
-        while (!timeWindow.empty() && timeWindow.front()->getTimestamp() + windowSeconds < entry->getTimestamp()) {
-            timeWindow.pop_front();
+    } else {
+        std::vector<LogEntry*> errors;
+        for (std::map<std::string, std::vector<LogEntry*> >::const_iterator it = errorsBySource.begin(); it != errorsBySource.end(); ++it) {
+            const std::vector<LogEntry*>& sourceErrors = it->second;
+            for (std::vector<LogEntry*>::const_iterator sourceIt = sourceErrors.begin(); sourceIt != sourceErrors.end(); ++sourceIt) {
+                errors.push_back(*sourceIt);
+            }
         }
-        if (static_cast<int>(timeWindow.size()) > static_cast<int>(average * 3.0)) {
+        std::sort(errors.begin(), errors.end(), compareByTimestamp);
+        std::time_t firstTime = errors.front()->getTimestamp();
+        std::time_t lastTime = errors.back()->getTimestamp();
+        double hours = static_cast<double>(lastTime - firstTime) / 3600.0;
+        if (hours < 1.0) {
+            hours = 1.0;
+        }
+        double average = static_cast<double>(errors.size()) / hours;
+        if (average < 1.0) {
+            average = 1.0;
+        }
+        double expectedInWindow = average * static_cast<double>(windowMinutes) / 60.0;
+        int windowSeconds = windowMinutes * 60;
+        int spikeThreshold = static_cast<int>(expectedInWindow * 3.0 + 0.5);
+        if (spikeThreshold < 5) {
+            spikeThreshold = 5;
+        }
+        bool spikeDetected = false;
+        for (std::map<std::string, std::vector<LogEntry*> >::iterator it = errorsBySource.begin(); it != errorsBySource.end() && !spikeDetected; ++it) {
+            std::vector<LogEntry*>& sourceErrors = it->second;
+            std::sort(sourceErrors.begin(), sourceErrors.end(), compareByTimestamp);
+            std::deque<LogEntry*> sourceWindow;
+            for (std::vector<LogEntry*>::const_iterator sourceIt = sourceErrors.begin(); sourceIt != sourceErrors.end(); ++sourceIt) {
+                LogEntry* entry = *sourceIt;
+                sourceWindow.push_back(entry);
+                while (!sourceWindow.empty() && sourceWindow.front()->getTimestamp() + windowSeconds < entry->getTimestamp()) {
+                    sourceWindow.pop_front();
+                }
+                if (static_cast<int>(sourceWindow.size()) >= spikeThreshold) {
+                    AnomalySummary summary;
+                    std::ostringstream idStream;
+                    idStream << "A" << (1000 + static_cast<int>(anomalies.size()));
+                    summary.anomalyId = idStream.str();
+                    summary.timestamp = entry->getTimestamp();
+                    summary.level = "ERROR";
+                    summary.source = it->first;
+                    std::ostringstream descStream;
+                    descStream << sourceWindow.size() << " ERRORs detected in last " << windowMinutes << " minutes from " << it->first;
+                    summary.description = descStream.str();
+                    summary.score = 0.0;
+                    anomalies.push_back(summary);
+                    std::ostringstream msgStream;
+                    msgStream << "SPIKE ALERT - " << summary.description;
+                    alertMessage = msgStream.str();
+                    spikeDetected = true;
+                    break;
+                }
+            }
+        }
+        if (!spikeDetected) {
+            alertMessage = "No spike anomalies detected in the current data window.";
+        }
+    }
+
+    for (std::vector<LogEntry*>::const_iterator it = entries->begin(); it != entries->end(); ++it) {
+        LogEntry* entry = *it;
+        if (entry == NULL) {
+            continue;
+        }
+        if (entry->getAnomalyScore() >= 0.85 && !anomalyExists(anomalies, entry)) {
             AnomalySummary summary;
             std::ostringstream idStream;
             idStream << "A" << (1000 + static_cast<int>(anomalies.size()));
@@ -112,31 +168,13 @@ void LogAnalyzer::detectSpikes(int windowMinutes, std::string& alertMessage) {
             summary.description = entry->getMessage();
             summary.score = entry->getAnomalyScore();
             anomalies.push_back(summary);
-            std::ostringstream msgStream;
-            msgStream << "SPIKE ALERT - " << timeWindow.size() << " ERRORs detected in last " << windowMinutes << " minutes from " << entry->getSource();
-            alertMessage = msgStream.str();
-            break;
         }
     }
-    if (anomalies.empty()) {
-        for (std::vector<LogEntry*>::const_iterator it = errors.begin(); it != errors.end(); ++it) {
-            LogEntry* entry = *it;
-            if (entry->getAnomalyScore() > 0.9) {
-                AnomalySummary summary;
-                std::ostringstream idStream;
-                idStream << "A" << (1000 + static_cast<int>(anomalies.size()));
-                summary.anomalyId = idStream.str();
-                summary.timestamp = entry->getTimestamp();
-                summary.level = entry->getLevel();
-                summary.source = entry->getSource();
-                summary.description = entry->getMessage();
-                summary.score = entry->getAnomalyScore();
-                anomalies.push_back(summary);
-            }
-        }
-        if (anomalies.empty()) {
-            alertMessage = "No spikes or high-score anomalies found.";
-        }
+    if (!alertMessage.empty() && alertMessage == "No spike anomalies detected in the current data window." && !anomalies.empty()) {
+        alertMessage.clear();
+    }
+    if (alertMessage.empty() && anomalies.empty()) {
+        alertMessage = "No spikes or high-score anomalies found.";
     }
 }
 

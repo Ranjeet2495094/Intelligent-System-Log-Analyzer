@@ -119,7 +119,7 @@ std::string WarningLogEntry::getType() const {
 double WarningLogEntry::calculateAnomalyScore() {
     double score = 0.3;
     if (containsToken(message, "memory") || containsToken(message, "disk") || containsToken(message, "slow")) {
-        score += 0.2;
+        score += 0.15;
     }
     if (containsToken(message, "failed") || containsToken(message, "error")) {
         score += 0.15;
@@ -147,17 +147,23 @@ std::string ErrorLogEntry::getType() const {
 }
 
 double ErrorLogEntry::calculateAnomalyScore() {
-    double score = 0.7;
-    if (containsToken(message, "timeout") || containsToken(message, "failed") || containsToken(message, "exception")) {
-        score += 0.15;
+    if (containsToken(message, "sql injection")) {
+        anomalyScore = 0.98;
+        return anomalyScore;
     }
-    if (containsToken(message, "sql injection") || containsToken(message, "unauthorized") || containsToken(message, "denied")) {
-        score += 0.1;
+    if (containsToken(message, "exception")) {
+        anomalyScore = 0.92;
+        return anomalyScore;
     }
-    if (score > 0.98) {
-        score = 0.98;
+    if (containsToken(message, "timeout") || containsToken(message, "failed")) {
+        anomalyScore = 0.85;
+        return anomalyScore;
     }
-    anomalyScore = score;
+    if (containsToken(message, "unauthorized") || containsToken(message, "denied")) {
+        anomalyScore = 0.80;
+        return anomalyScore;
+    }
+    anomalyScore = 0.70;
     return anomalyScore;
 }
 

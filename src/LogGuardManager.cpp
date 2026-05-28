@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <ctime>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <cstring>
@@ -177,16 +178,19 @@ bool LogGuardManager::generateCriticalAlerts(std::string& errorMessage) {
         errorMessage = "Unable to append to alerts log.";
         return false;
     }
-    std::vector<LogEntry*> top = analyzer.getTopAnomalies(10);
-    for (std::vector<LogEntry*>::const_iterator it = top.begin(); it != top.end(); ++it) {
-        LogEntry* entry = *it;
-        if (entry == NULL) {
-            continue;
+    const std::vector<AnomalySummary>& anomalies = analyzer.getAnomalies();
+    for (std::vector<AnomalySummary>::const_iterator it = anomalies.begin(); it != anomalies.end(); ++it) {
+        const AnomalySummary& summary = *it;
+        char timeBuffer[64] = {0};
+        std::tm* timeInfo = std::localtime(&summary.timestamp);
+        if (timeInfo != NULL) {
+            std::strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", timeInfo);
         }
-        if (entry->getAnomalyScore() >= 0.9 || makeUpper(entry->getLevel()) == "ERROR") {
-            std::ostringstream timestampStream;
-            timestampStream << std::time(NULL);
-            ofs << "[" << timestampStream.str() << "] CRITICAL ALERT - " << entry->getMessage() << " (Score: " << entry->getAnomalyScore() << ")\n";
+        std::string formattedTime = timeBuffer[0] != '\0' ? timeBuffer : "unknown";
+        if (summary.description.find("ERRORs detected") != std::string::npos) {
+            ofs << "[" << formattedTime << "] SPIKE ALERT - " << summary.description << "\n";
+        } else if (summary.score >= 0.95) {
+            ofs << "[" << formattedTime << "] CRITICAL ALERT - High Anomaly Score: " << summary.description << " (Score: " << summary.score << ")\n";
         }
     }
     errorMessage = alertMessage;
